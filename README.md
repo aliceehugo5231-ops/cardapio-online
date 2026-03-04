@@ -32,6 +32,7 @@
       <p id="admin-hint" class="text-white/90 mt-2 text-xs" style="display:none;">
         Modo ADM ativo — URL com <b>#admin</b>
       </p>
+      <p id="status-api" class="text-white/90 mt-2 text-xs"></p>
     </header>
 
     <main class="max-w-6xl mx-auto px-4 py-8">
@@ -56,6 +57,11 @@
 
   <script>
     /*********************
+     * ✅ API (GOOGLE SHEETS / APPS SCRIPT) — ONLINE
+     *********************/
+    const API_URL = "https://script.google.com/macros/s/AKfycbwt99XdguFspZbuA-iUU5xffPBJNuF0iP8ykXcWjv3OX0seOTgwINL2mxgbYQZpJt8ahw/exec";
+
+    /*********************
      * CONFIG GERAL
      *********************/
     const defaultConfig = {
@@ -65,11 +71,11 @@
     };
     let currentConfig = { ...defaultConfig };
 
-    // 🔐 Troque a senha do ADM aqui:
+    // 🔐 IMPORTANTE: esta senha deve ser A MESMA do Apps Script (ADMIN_PASSWORD lá)
     const ADMIN_PASSWORD = "1234";
 
     /*********************
-     * DIAS DA SEMANA (SEG-SÁB)
+     * DIAS (SEG-SÁB)
      *********************/
     const diasSemana = [
       { key: 'segunda', label: 'Segunda' },
@@ -82,28 +88,9 @@
     let diaSelecionado = 'segunda';
 
     /*********************
-     * CARDÁPIO (SALVO LOCAL)
-     * item: { id, name, desc, sizes:[{size, price},{size,price}] }
+     * MENU ONLINE (vem da API)
      *********************/
-    const MENU_KEY = "menuSemana_v1";
-
-    function defaultMenuSemana() {
-      return { segunda:[], terca:[], quarta:[], quinta:[], sexta:[], sabado:[] };
-    }
-
-    function loadMenuSemana() {
-      try {
-        const raw = localStorage.getItem(MENU_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch (e) {}
-      return defaultMenuSemana();
-    }
-
-    function saveMenuSemana(data) {
-      localStorage.setItem(MENU_KEY, JSON.stringify(data));
-    }
-
-    let menuSemana = loadMenuSemana();
+    let menuSemana = { segunda:[], terca:[], quarta:[], quinta:[], sexta:[], sabado:[] };
 
     /*********************
      * ACOMPANHAMENTOS
@@ -156,8 +143,16 @@
       }
     }
 
+    function todayKey() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
     /*********************
-     * SALVAR DADOS DO CLIENTE
+     * SALVAR DADOS DO CLIENTE (local)
      *********************/
     const CUSTOMER_KEY = "customer_v1";
     function loadCustomer() {
@@ -169,76 +164,42 @@
     }
 
     /*********************
-     * FATURAMENTO (LOCAL)
+     * API HELPERS (ONLINE)
      *********************/
-    const SALES_KEY = "sales_log_v1";
-
-    function todayKey() {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
+    async function apiGetMenu() {
+      const res = await fetch(`${API_URL}?action=getMenu`, { method: "GET" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "getMenu_fail");
+      return data.menu;
     }
 
-    function loadSales() {
-      try { return JSON.parse(localStorage.getItem(SALES_KEY) || "[]"); }
-      catch { return []; }
-    }
-
-    function saveSales(list) {
-      localStorage.setItem(SALES_KEY, JSON.stringify(list));
-    }
-
-    function addSale(entry) {
-      const list = loadSales();
-      list.push(entry);
-      saveSales(list);
-    }
-
-    function salesOfToday() {
-      const key = todayKey();
-      return loadSales().filter(s => s.dayKey === key);
-    }
-
-    function totalsOfToday() {
-      const sales = salesOfToday();
-      const total = sales.reduce((sum, s) => sum + (Number(s.total || 0)), 0);
-      return { count: sales.length, total, avg: sales.length ? total / sales.length : 0 };
-    }
-
-    function exportTodayCSV() {
-      const sales = salesOfToday();
-      const header = ["DataHora","Cliente","Telefone","Endereco","Prato","Tamanho","Qtd","Total","Obs"].join(",");
-      const lines = sales.map(s => {
-        const safe = (v) => `"${String(v ?? "").replaceAll('"','""')}"`;
-        return [
-          safe(new Date(s.ts).toLocaleString("pt-BR")),
-          safe(s.clienteNome), safe(s.clienteTelefone), safe(s.clienteEndereco),
-          safe(s.itemName), safe(s.size),
-          safe(s.qty),
-          safe(String(s.total).replace(".", ",")),
-          safe(s.observacoes)
-        ].join(",");
+    async function apiSaveMenu(menu) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ action:"saveMenu", pass: ADMIN_PASSWORD, menu })
       });
-
-      const csv = [header, ...lines].join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `faturamento_${todayKey()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "saveMenu_fail");
+      return true;
     }
 
-    function clearTodaySales() {
-      const key = todayKey();
-      const list = loadSales().filter(s => s.dayKey !== key);
-      saveSales(list);
+    async function apiAddSale(sale) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ action:"addSale", sale })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "addSale_fail");
+      return true;
+    }
+
+    async function apiGetSalesToday() {
+      const res = await fetch(`${API_URL}?action=getSalesToday&pass=${encodeURIComponent(ADMIN_PASSWORD)}`, { method: "GET" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "getSalesToday_fail");
+      return data; // { ok, dayKey, total, count, avg }
     }
 
     /*********************
@@ -377,7 +338,6 @@
       if (!size) return;
 
       cancelarPedido();
-
       const c = loadCustomer();
 
       const modal = document.createElement('div');
@@ -512,7 +472,6 @@
       const clienteNome = (document.getElementById('cliente-nome')?.value || '').trim();
       const clienteTelefone = (document.getElementById('cliente-telefone')?.value || '').trim();
       const clienteEndereco = (document.getElementById('cliente-endereco')?.value || '').trim();
-
       const qty = Math.max(1, parseInt((document.getElementById('qtd')?.value || '1').replace(/\D/g,''), 10) || 1);
 
       if (!clienteNome) { alert('⚠️ Por favor, digite seu nome!'); return null; }
@@ -556,22 +515,24 @@
       return message;
     }
 
-    function registerSale(item, size, form) {
+    async function registerSaleOnline(item, size, form) {
       const total = Number(size.price) * Number(form.qty || 1);
-      addSale({
+
+      const sale = {
         dayKey: todayKey(),
         ts: Date.now(),
         clienteNome: form.clienteNome,
         clienteTelefone: form.clienteTelefone,
         clienteEndereco: form.clienteEndereco,
-        itemId: item.id,
         itemName: item.name,
         size: size.size,
-        price: Number(size.price),
         qty: Number(form.qty || 1),
         total,
         observacoes: form.observacoes || ""
-      });
+      };
+
+      // grava ONLINE (Sheets)
+      await apiAddSale(sale);
     }
 
     async function copiarPedido() {
@@ -590,12 +551,9 @@
 
       const msg = buildOrderMessage(item, size, form);
       await copyToClipboard(msg);
-
-      // Se quiser contar "Copiar" como venda, descomente:
-      // registerSale(item, size, form);
     }
 
-    function finalizarPedido() {
+    async function finalizarPedido() {
       const itemId = document.getElementById('modal-itemId')?.value;
       const sizeIdx = Number(document.getElementById('modal-sizeIdx')?.value || 0);
 
@@ -612,8 +570,13 @@
       const whatsappNumber = normalizeWhatsappNumber(currentConfig.whatsapp_number || defaultConfig.whatsapp_number);
       if (!whatsappNumber) { alert('⚠️ WhatsApp do restaurante não configurado!'); return; }
 
-      // Conta venda quando clica "Pedir no WhatsApp"
-      registerSale(item, size, form);
+      // ✅ conta venda ONLINE quando clica "Pedir no WhatsApp"
+      try {
+        await registerSaleOnline(item, size, form);
+      } catch (e) {
+        console.error(e);
+        alert("⚠️ Não consegui registrar a venda online, mas vou abrir o WhatsApp mesmo assim.");
+      }
 
       const message = buildOrderMessage(item, size, form);
       const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
@@ -638,7 +601,7 @@
     });
 
     /*********************
-     * ADMIN: EDITOR DO CARDÁPIO
+     * ADMIN: EDITOR DO CARDÁPIO (ONLINE)
      *********************/
     function adminRow(it, idx) {
       const sizes = Array.isArray(it.sizes) ? it.sizes : [];
@@ -695,7 +658,7 @@
       renderAdmin();
     }
 
-    function saveAdmin() {
+    async function saveAdmin() {
       const inputs = document.querySelectorAll('#menu-container [data-idx][data-field]');
       inputs.forEach(inp => {
         const idx = Number(inp.getAttribute('data-idx'));
@@ -709,6 +672,7 @@
         if (field === 'price_large') it.sizes[1].price = String(val).replace(',', '.');
       });
 
+      // limpeza
       menuSemana[diaSelecionado] = (menuSemana[diaSelecionado] || [])
         .map(it => {
           const p1 = Number(String(it.sizes?.[0]?.price ?? '').replace(',', '.'));
@@ -725,12 +689,14 @@
         })
         .filter(it => it.name);
 
-      saveMenuSemana(menuSemana);
-      alert("✅ Cardápio salvo!");
+      // ✅ salva ONLINE
+      await apiSaveMenu(menuSemana);
+      alert("✅ Cardápio salvo ONLINE!");
+      await reloadMenuFromApi(); // garante atualizado
       renderAdmin();
     }
 
-    function renderAdmin() {
+    async function renderAdmin() {
       if (!requireAdminLogin()) return;
 
       const container = document.getElementById('menu-container');
@@ -739,10 +705,16 @@
 
       const diaObj = diasSemana.find(d => d.key === diaSelecionado);
       titulo.textContent = `ADM — editar ${diaObj ? diaObj.label : ''}`;
-      subtitulo.textContent = 'Cadastre os itens e veja o faturamento de hoje.';
+      subtitulo.textContent = 'Cadastre os itens e veja o faturamento online do dia.';
 
-      const t = totalsOfToday();
-      const vendasHoje = salesOfToday().slice().reverse();
+      // faturamento online
+      let sales = { dayKey: todayKey(), total: 0, count: 0, avg: 0 };
+      try {
+        sales = await apiGetSalesToday();
+      } catch (e) {
+        console.error(e);
+      }
+
       const itens = menuSemana[diaSelecionado] || [];
 
       container.innerHTML = `
@@ -754,45 +726,26 @@
                 style="background:#111827;">+ Adicionar item</button>
               <button onclick="saveAdmin()" class="px-4 py-2 rounded-lg font-semibold text-white"
                 style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">💾 Salvar cardápio</button>
+              <button onclick="location.reload()" class="px-4 py-2 rounded-lg font-semibold text-white"
+                style="background:#0f766e;">🔄 Atualizar</button>
               <button onclick="sairAdmin()" class="px-4 py-2 rounded-lg font-semibold"
                 style="background:#eee;color:#333;">Sair</button>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
             <div class="p-4 rounded-lg border border-gray-200">
-              <div class="text-xs text-gray-500">Faturamento de hoje</div>
-              <div class="text-2xl font-bold text-gray-900">${toBRL(t.total)}</div>
+              <div class="text-xs text-gray-500">Faturamento de hoje (online)</div>
+              <div class="text-2xl font-bold text-gray-900">${toBRL(sales.total)}</div>
+              <div class="text-xs text-gray-500 mt-1">Dia: ${escapeHtml(sales.dayKey || '')}</div>
             </div>
             <div class="p-4 rounded-lg border border-gray-200">
               <div class="text-xs text-gray-500">Pedidos hoje</div>
-              <div class="text-2xl font-bold text-gray-900">${t.count}</div>
+              <div class="text-2xl font-bold text-gray-900">${Number(sales.count || 0)}</div>
             </div>
             <div class="p-4 rounded-lg border border-gray-200">
               <div class="text-xs text-gray-500">Ticket médio</div>
-              <div class="text-2xl font-bold text-gray-900">${toBRL(t.avg)}</div>
-            </div>
-          </div>
-
-          <div class="flex gap-2 flex-wrap mb-6">
-            <button onclick="exportTodayCSV()" class="px-4 py-2 rounded-lg font-semibold text-white" style="background:#0f766e;">
-              ⬇️ Exportar CSV (hoje)
-            </button>
-            <button onclick="if(confirm('Limpar faturamento de hoje?')){ clearTodaySales(); renderAdmin(); }"
-              class="px-4 py-2 rounded-lg font-semibold" style="background:#fee2e2;color:#991b1b;">
-              🧹 Limpar hoje
-            </button>
-          </div>
-
-          <div class="p-4 rounded-lg border border-gray-200 mb-6">
-            <div class="font-bold text-gray-800 mb-2">Pedidos de hoje</div>
-            <div class="text-sm text-gray-700">
-              ${vendasHoje.length ? vendasHoje.map(s => `
-                <div style="padding:10px 0;border-bottom:1px solid #eee;">
-                  <div><b>${escapeHtml(s.clienteNome || '')}</b> — ${escapeHtml(s.itemName || '')} (${escapeHtml(s.size || '')}) x${Number(s.qty||1)}</div>
-                  <div style="color:#555;margin-top:4px;">Total: <b>${toBRL(s.total)}</b> — ${new Date(s.ts).toLocaleTimeString('pt-BR')}</div>
-                </div>
-              `).join('') : `<span class="text-gray-500">Nenhum pedido registrado hoje.</span>`}
+              <div class="text-2xl font-bold text-gray-900">${toBRL(sales.avg)}</div>
             </div>
           </div>
 
@@ -802,26 +755,49 @@
           </div>
 
           ${!itens.length ? `<p class="text-sm text-gray-500 mt-3">Nenhum item ainda. Clique em “Adicionar item”.</p>` : ``}
+
+          <p class="text-xs text-gray-500 mt-6">
+            Obs: o total de hoje vem do Google Sheets. (Para listar cada pedido no painel, é só adicionar um endpoint no Apps Script.)
+          </p>
         </div>
       `;
     }
 
     /*********************
+     * CARREGAR MENU ONLINE
+     *********************/
+    async function reloadMenuFromApi() {
+      const status = document.getElementById("status-api");
+      try {
+        status.textContent = "🔄 Carregando cardápio online...";
+        const data = await apiGetMenu();
+        menuSemana = data || { segunda:[], terca:[], quarta:[], quinta:[], sexta:[], sabado:[] };
+        status.textContent = "✅ Cardápio online carregado.";
+      } catch (e) {
+        console.error(e);
+        status.textContent = "⚠️ Não consegui carregar o cardápio online.";
+        menuSemana = { segunda:[], terca:[], quarta:[], quinta:[], sexta:[], sabado:[] };
+      }
+    }
+
+    /*********************
      * START
      *********************/
-    function startApp() {
+    async function startApp() {
       const nameEl = document.getElementById('restaurant-name');
       if (nameEl) nameEl.textContent = currentConfig.restaurant_name || defaultConfig.restaurant_name;
 
       const hint = document.getElementById('admin-hint');
       if (hint) hint.style.display = isAdminMode() ? 'block' : 'none';
 
+      await reloadMenuFromApi();
+
       renderTabs();
       if (isAdminMode()) renderAdmin();
       else renderMenuDoDia();
     }
 
-    window.addEventListener('hashchange', startApp);
+    window.addEventListener('hashchange', () => startApp());
 
     /*********************
      * ELEMENT SDK (opcional)
