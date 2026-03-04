@@ -28,8 +28,8 @@
     <!-- Header -->
     <header class="text-center py-6 px-4" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
       <h1 id="restaurant-name" class="text-3xl font-bold text-white">🍽️ Marmitex do Dia</h1>
-      <p class="text-white mt-1 text-sm" id="header-subtitle">Peça pelo WhatsApp</p>
-      <p class="text-white/90 mt-1 text-xs" id="admin-hint" style="display:none;">
+      <p class="text-white mt-1 text-sm">Peça pelo WhatsApp</p>
+      <p id="admin-hint" class="text-white/90 mt-2 text-xs" style="display:none;">
         Modo ADM ativo — URL com <b>#admin</b>
       </p>
     </header>
@@ -60,12 +60,12 @@
      *********************/
     const defaultConfig = {
       restaurant_name: '🍽️ Marmitex do Dia',
-      whatsapp_number: '31991474252', // seu WhatsApp (com DDD)
-      min_acompanhamentos: 0,         // 0 = não obriga / 2 = obriga escolher 2
+      whatsapp_number: '31991474252', // SEU WHATSAPP (com DDD)
+      min_acompanhamentos: 0
     };
     let currentConfig = { ...defaultConfig };
 
-    // Senha do ADM (troque!)
+    // 🔐 Troque a senha do ADM aqui:
     const ADMIN_PASSWORD = "1234";
 
     /*********************
@@ -77,27 +77,18 @@
       { key: 'quarta',  label: 'Quarta' },
       { key: 'quinta',  label: 'Quinta' },
       { key: 'sexta',   label: 'Sexta' },
-      { key: 'sabado',  label: 'Sábado' },
+      { key: 'sabado',  label: 'Sábado' }
     ];
-
     let diaSelecionado = 'segunda';
 
     /*********************
      * CARDÁPIO (SALVO LOCAL)
-     * Cada item do dia:
-     * { id, name, desc, sizes: [{size, price}, ...] }
+     * item: { id, name, desc, sizes:[{size, price},{size,price}] }
      *********************/
     const MENU_KEY = "menuSemana_v1";
 
     function defaultMenuSemana() {
-      return {
-        segunda: [],
-        terca: [],
-        quarta: [],
-        quinta: [],
-        sexta: [],
-        sabado: [],
-      };
+      return { segunda:[], terca:[], quarta:[], quinta:[], sexta:[], sabado:[] };
     }
 
     function loadMenuSemana() {
@@ -115,7 +106,7 @@
     let menuSemana = loadMenuSemana();
 
     /*********************
-     * ACOMPANHAMENTOS (CLIENTE)
+     * ACOMPANHAMENTOS
      *********************/
     const acompanhamentos = [
       'Arroz',
@@ -137,24 +128,18 @@
         .replaceAll("'", '&#039;');
     }
 
-    function onlyDigits(str) {
-      return String(str || '').replace(/\D/g, '');
-    }
+    function onlyDigits(str) { return String(str || '').replace(/\D/g, ''); }
 
     function normalizeWhatsappNumber(raw) {
       let n = onlyDigits(raw);
       if (!n) return '';
-      if (!n.startsWith('55')) n = '55' + n; // Brasil
+      if (!n.startsWith('55')) n = '55' + n;
       return n;
     }
 
-    function formatBRL(value) {
-      return Number(value || 0).toFixed(2).replace('.', ',');
-    }
+    function formatBRL(value) { return Number(value || 0).toFixed(2).replace('.', ','); }
 
-    function toBRL(n) {
-      return `R$ ${Number(n || 0).toFixed(2).replace('.', ',')}`;
-    }
+    function toBRL(n) { return `R$ ${Number(n||0).toFixed(2).replace('.', ',')}`; }
 
     async function copyToClipboard(text) {
       try {
@@ -172,7 +157,7 @@
     }
 
     /*********************
-     * SALVAR DADOS DO CLIENTE (pra não digitar toda vez)
+     * SALVAR DADOS DO CLIENTE
      *********************/
     const CUSTOMER_KEY = "customer_v1";
     function loadCustomer() {
@@ -184,7 +169,7 @@
     }
 
     /*********************
-     * VENDAS / FATURAMENTO (LOCAL)
+     * FATURAMENTO (LOCAL)
      *********************/
     const SALES_KEY = "sales_log_v1";
 
@@ -219,11 +204,7 @@
     function totalsOfToday() {
       const sales = salesOfToday();
       const total = sales.reduce((sum, s) => sum + (Number(s.total || 0)), 0);
-      return {
-        count: sales.length,
-        total,
-        avg: sales.length ? total / sales.length : 0,
-      };
+      return { count: sales.length, total, avg: sales.length ? total / sales.length : 0 };
     }
 
     function exportTodayCSV() {
@@ -233,19 +214,18 @@
         const safe = (v) => `"${String(v ?? "").replaceAll('"','""')}"`;
         return [
           safe(new Date(s.ts).toLocaleString("pt-BR")),
-          safe(s.clienteNome),
-          safe(s.clienteTelefone),
-          safe(s.clienteEndereco),
-          safe(s.itemName),
-          safe(s.size),
+          safe(s.clienteNome), safe(s.clienteTelefone), safe(s.clienteEndereco),
+          safe(s.itemName), safe(s.size),
           safe(s.qty),
           safe(String(s.total).replace(".", ",")),
-          safe(s.observacoes),
+          safe(s.observacoes)
         ].join(",");
       });
+
       const csv = [header, ...lines].join("\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
+
       const a = document.createElement("a");
       a.href = url;
       a.download = `faturamento_${todayKey()}.csv`;
@@ -264,9 +244,7 @@
     /*********************
      * MODO ADMIN
      *********************/
-    function isAdminMode() {
-      return location.hash === "#admin";
-    }
+    function isAdminMode() { return location.hash === "#admin"; }
 
     function requireAdminLogin() {
       const ok = sessionStorage.getItem("admin_ok") === "1";
@@ -303,7 +281,6 @@
             background: ${diaSelecionado === d.key ? 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)' : '#fff'};
             color: ${diaSelecionado === d.key ? '#fff' : '#333'};
           "
-          aria-pressed="${diaSelecionado === d.key ? 'true' : 'false'}"
         >
           ${d.label}
         </button>
@@ -318,7 +295,7 @@
     }
 
     /*********************
-     * CLIENTE: RENDER DO DIA
+     * CLIENTE: RENDER DIA
      *********************/
     function renderMenuDoDia() {
       const container = document.getElementById('menu-container');
@@ -329,7 +306,7 @@
       titulo.textContent = `Cardápio de ${diaObj ? diaObj.label : 'Hoje'}`;
       subtitulo.textContent = 'Escolha um dia acima para ver o cardápio.';
 
-      const itens = (menuSemana[diaSelecionado] || []).slice();
+      const itens = menuSemana[diaSelecionado] || [];
 
       if (!itens.length) {
         container.innerHTML = `
@@ -367,7 +344,7 @@
     }
 
     /*********************
-     * MODAL: PEDIDO
+     * MODAL
      *********************/
     function cancelarPedido() {
       const modal = document.getElementById('modal-detalhes');
@@ -436,7 +413,7 @@
           </div>
 
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-weight: bold; color: #333; margin-bottom: 8px;">🧮 Quantidade:</label>
+            <label style="display:block;font-weight:bold;color:#333;margin-bottom:8px;">🧮 Quantidade:</label>
             <div style="display:flex;align-items:center;gap:10px;">
               <button type="button" onclick="alterarQtd(-1)"
                 style="width:44px;height:40px;border-radius:10px;background:#eee;border:none;font-size:18px;cursor:pointer;">−</button>
@@ -478,7 +455,7 @@
             <label style="display: block; font-weight: bold; color: #333; margin-bottom: 8px;">
               🥗 Escolha os acompanhamentos ${currentConfig.min_acompanhamentos > 0 ? `(mín: ${currentConfig.min_acompanhamentos})` : ''}
             </label>
-            <div id="acompanhamento-list" style="max-height: 150px; overflow-y: auto; padding-right: 6px;">
+            <div style="max-height: 150px; overflow-y: auto; padding-right: 6px;">
               ${acompanhamentos.map(acomp => `
                 <label style="display: flex; align-items: center; padding: 8px 0; cursor: pointer; color: #666;">
                   <input type="checkbox" class="acomp-checkbox" value="${escapeHtml(acomp)}"
@@ -520,23 +497,14 @@
 
       document.body.appendChild(modal);
 
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) cancelarPedido();
-      });
+      modal.addEventListener('click', (e) => { if (e.target === modal) cancelarPedido(); });
 
       function escHandler(e) {
-        if (e.key === 'Escape') {
-          cancelarPedido();
-          document.removeEventListener('keydown', escHandler);
-        }
+        if (e.key === 'Escape') { cancelarPedido(); document.removeEventListener('keydown', escHandler); }
       }
       document.addEventListener('keydown', escHandler);
 
-      setTimeout(() => {
-        const nome = document.getElementById('cliente-nome');
-        if (nome) nome.focus();
-      }, 50);
-
+      setTimeout(() => document.getElementById('cliente-nome')?.focus(), 50);
       updateTotalPreview();
     }
 
@@ -551,7 +519,6 @@
       if (!clienteTelefone) { alert('⚠️ Por favor, digite seu telefone!'); return null; }
       if (!clienteEndereco) { alert('⚠️ Por favor, digite seu endereço!'); return null; }
 
-      // salva dados do cliente
       saveCustomer({ nome: clienteNome, telefone: clienteTelefone, endereco: clienteEndereco });
 
       const checkboxes = document.querySelectorAll('.acomp-checkbox:checked');
@@ -563,60 +530,30 @@
       }
 
       const observacoes = (document.getElementById('observacoes')?.value || '').trim();
-
       return { clienteNome, clienteTelefone, clienteEndereco, acompSelecionados, observacoes, qty };
     }
 
-    function buildOrderMessage(item, size, clienteNome, clienteTelefone, clienteEndereco, acompSelecionados, observacoes, qty) {
-      const total = Number(size.price) * Number(qty || 1);
+    function buildOrderMessage(item, size, form) {
+      const total = Number(size.price) * Number(form.qty || 1);
 
-      let message = `🍱 *NOVO PEDIDO*\n\n`;
-      message += `👤 *Cliente:* ${clienteNome}\n`;
-      message += `📱 *Telefone:* ${clienteTelefone}\n`;
-      message += `📍 *Endereço:* ${clienteEndereco}\n\n`;
-      message += `━━━━━━━━━━━━━━━━━━\n\n`;
-      message += `📌 *Prato:* ${item.name}\n`;
-      message += `📏 *Tamanho:* ${size.size}\n`;
-      message += `🧮 *Quantidade:* ${qty}\n`;
-      message += `💰 *Unitário:* R$ ${formatBRL(size.price)}\n`;
-      message += `💵 *Total:* R$ ${formatBRL(total)}\n\n`;
+      let message = `🍱 *NOVO PEDIDO*\\n\\n`;
+      message += `👤 *Cliente:* ${form.clienteNome}\\n`;
+      message += `📱 *Telefone:* ${form.clienteTelefone}\\n`;
+      message += `📍 *Endereço:* ${form.clienteEndereco}\\n\\n`;
+      message += `━━━━━━━━━━━━━━━━━━\\n\\n`;
+      message += `📌 *Prato:* ${item.name}\\n`;
+      message += `📏 *Tamanho:* ${size.size}\\n`;
+      message += `🧮 *Quantidade:* ${form.qty}\\n`;
+      message += `💰 *Unitário:* R$ ${formatBRL(size.price)}\\n`;
+      message += `💵 *Total:* R$ ${formatBRL(total)}\\n\\n`;
 
-      if (acompSelecionados.length) {
-        message += `🥗 *Acompanhamentos:*\n${acompSelecionados.join('\n')}\n\n`;
+      if (form.acompSelecionados.length) {
+        message += `🥗 *Acompanhamentos:*\\n${form.acompSelecionados.join('\\n')}\\n\\n`;
       }
-      if (observacoes) {
-        message += `📝 *Observações:*\n${observacoes}\n`;
+      if (form.observacoes) {
+        message += `📝 *Observações:*\\n${form.observacoes}\\n`;
       }
       return message;
-    }
-
-    async function copiarPedido() {
-      const itemId = document.getElementById('modal-itemId')?.value;
-      const sizeIdx = Number(document.getElementById('modal-sizeIdx')?.value || 0);
-
-      const itens = menuSemana[diaSelecionado] || [];
-      const item = itens.find(m => String(m.id) === String(itemId));
-      if (!item) return;
-
-      const size = (item.sizes || [])[sizeIdx];
-      if (!size) return;
-
-      const form = getFormDataOrAlert();
-      if (!form) return;
-
-      const msg = buildOrderMessage(
-        item, size,
-        form.clienteNome,
-        form.clienteTelefone,
-        form.clienteEndereco,
-        form.acompSelecionados,
-        form.observacoes,
-        form.qty
-      );
-
-      await copyToClipboard(msg);
-      // (Opcional) Se quiser contar "Copiar" como venda, descomente:
-      // registerSale(item, size, form);
     }
 
     function registerSale(item, size, form) {
@@ -633,8 +570,29 @@
         price: Number(size.price),
         qty: Number(form.qty || 1),
         total,
-        observacoes: form.observacoes || "",
+        observacoes: form.observacoes || ""
       });
+    }
+
+    async function copiarPedido() {
+      const itemId = document.getElementById('modal-itemId')?.value;
+      const sizeIdx = Number(document.getElementById('modal-sizeIdx')?.value || 0);
+
+      const itens = menuSemana[diaSelecionado] || [];
+      const item = itens.find(m => String(m.id) === String(itemId));
+      if (!item) return;
+
+      const size = (item.sizes || [])[sizeIdx];
+      if (!size) return;
+
+      const form = getFormDataOrAlert();
+      if (!form) return;
+
+      const msg = buildOrderMessage(item, size, form);
+      await copyToClipboard(msg);
+
+      // Se quiser contar "Copiar" como venda, descomente:
+      // registerSale(item, size, form);
     }
 
     function finalizarPedido() {
@@ -652,26 +610,13 @@
       if (!form) return;
 
       const whatsappNumber = normalizeWhatsappNumber(currentConfig.whatsapp_number || defaultConfig.whatsapp_number);
-      if (!whatsappNumber) {
-        alert('⚠️ WhatsApp do restaurante não configurado!');
-        return;
-      }
+      if (!whatsappNumber) { alert('⚠️ WhatsApp do restaurante não configurado!'); return; }
 
-      // registra venda (conta quando clica "Pedir no WhatsApp")
+      // Conta venda quando clica "Pedir no WhatsApp"
       registerSale(item, size, form);
 
-      const message = buildOrderMessage(
-        item, size,
-        form.clienteNome,
-        form.clienteTelefone,
-        form.clienteEndereco,
-        form.acompSelecionados,
-        form.observacoes,
-        form.qty
-      );
-
-      const encoded = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encoded}`;
+      const message = buildOrderMessage(item, size, form);
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
       cancelarPedido();
       setTimeout(() => window.open(whatsappUrl, '_blank'), 100);
@@ -693,7 +638,7 @@
     });
 
     /*********************
-     * ADMIN: RENDER + EDITOR
+     * ADMIN: EDITOR DO CARDÁPIO
      *********************/
     function adminRow(it, idx) {
       const sizes = Array.isArray(it.sizes) ? it.sizes : [];
@@ -734,12 +679,12 @@
     function addItemAdmin() {
       menuSemana[diaSelecionado] = menuSemana[diaSelecionado] || [];
       menuSemana[diaSelecionado].push({
-        id: crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
         name: "",
         desc: "",
         sizes: [
           { size: "Pequeno", price: "" },
-          { size: "Grande", price: "" },
+          { size: "Grande", price: "" }
         ]
       });
       renderAdmin();
@@ -751,23 +696,19 @@
     }
 
     function saveAdmin() {
-      // lê inputs
       const inputs = document.querySelectorAll('#menu-container [data-idx][data-field]');
       inputs.forEach(inp => {
         const idx = Number(inp.getAttribute('data-idx'));
         const field = inp.getAttribute('data-field');
         const val = (inp.value || '').trim();
-
         const it = menuSemana[diaSelecionado][idx];
 
         if (field === 'name') it.name = val;
         if (field === 'desc') it.desc = val;
-
         if (field === 'price_small') it.sizes[0].price = String(val).replace(',', '.');
         if (field === 'price_large') it.sizes[1].price = String(val).replace(',', '.');
       });
 
-      // limpa: mantém só itens com nome + preços numéricos (se vazios, fica vazio mesmo)
       menuSemana[diaSelecionado] = (menuSemana[diaSelecionado] || [])
         .map(it => {
           const p1 = Number(String(it.sizes?.[0]?.price ?? '').replace(',', '.'));
@@ -778,7 +719,7 @@
             desc: (it.desc || '').trim(),
             sizes: [
               { size: "Pequeno", price: Number.isFinite(p1) ? p1 : 0 },
-              { size: "Grande", price: Number.isFinite(p2) ? p2 : 0 },
+              { size: "Grande",  price: Number.isFinite(p2) ? p2 : 0 }
             ]
           };
         })
@@ -802,7 +743,6 @@
 
       const t = totalsOfToday();
       const vendasHoje = salesOfToday().slice().reverse();
-
       const itens = menuSemana[diaSelecionado] || [];
 
       container.innerHTML = `
@@ -857,7 +797,7 @@
           </div>
 
           <div class="font-bold text-gray-800 mb-3">Itens do dia (${escapeHtml(diaObj?.label || '')})</div>
-          <div id="admin-list" class="space-y-3">
+          <div class="space-y-3">
             ${itens.map((it, idx) => adminRow(it, idx)).join('')}
           </div>
 
@@ -867,15 +807,14 @@
     }
 
     /*********************
-     * START / APP
+     * START
      *********************/
     function startApp() {
-      // header
       const nameEl = document.getElementById('restaurant-name');
       if (nameEl) nameEl.textContent = currentConfig.restaurant_name || defaultConfig.restaurant_name;
 
-      const adminHint = document.getElementById('admin-hint');
-      if (adminHint) adminHint.style.display = isAdminMode() ? 'block' : 'none';
+      const hint = document.getElementById('admin-hint');
+      if (hint) hint.style.display = isAdminMode() ? 'block' : 'none';
 
       renderTabs();
       if (isAdminMode()) renderAdmin();
@@ -885,18 +824,16 @@
     window.addEventListener('hashchange', startApp);
 
     /*********************
-     * ELEMENT SDK (CONFIG)
+     * ELEMENT SDK (opcional)
      *********************/
     async function onConfigChange(config) {
       currentConfig = { ...defaultConfig, ...config };
       const nameEl = document.getElementById('restaurant-name');
       if (nameEl) nameEl.textContent = currentConfig.restaurant_name || defaultConfig.restaurant_name;
     }
-
     function mapToCapabilities() {
       return { recolorables: [], borderables: [], fontEditable: undefined, fontSizeable: undefined };
     }
-
     function mapToEditPanelValues(config) {
       const cfg = { ...defaultConfig, ...config };
       return new Map([
@@ -905,12 +842,10 @@
         ['min_acompanhamentos', String(cfg.min_acompanhamentos ?? 0)]
       ]);
     }
-
     if (window.elementSdk) {
       window.elementSdk.init({ defaultConfig, onConfigChange, mapToCapabilities, mapToEditPanelValues });
     }
 
-    // inicia
     startApp();
   </script>
 </body>
